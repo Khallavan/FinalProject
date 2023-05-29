@@ -9,7 +9,7 @@ author:
     - "Palacios Diego Alejandro 46026"
 date: "2023-05-29"
 output: pdf_document
-repo: 
+repository: https://github.com/Khallavan/FinalProject 
 ---
 
 ```{r, r load data frame,echo=FALSE, message=FALSE, include=FALSE}
@@ -46,7 +46,7 @@ summary(df)
 
 Next, we pre-process the data to ensure that the values in the select_color column are converted to dummy variables for later use in the models.
 
-```{r, r data, echo=TRUE, message=FALSE, comment=NA}
+```{r, r data dummies, echo=TRUE, message=FALSE, comment=NA}
 library(caret)
 dummies <- dummyVars(~ select._color, data = df, na.action=na.pass)
 dummy_data <- predict(dummies, newdata = df)
@@ -99,7 +99,7 @@ model.knn
 
 The appropriate tests are run on 30% of the data to check the accuracy of the model and a report is generated with the prediction model.
 
-```{r, knn model, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+```{r, knn test, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
 predicted.knn <- predict(model.knn, newdata = df.test)
 conf.matrix <- confusionMatrix(predicted.knn, df.test$env)
 conf.matrix$table
@@ -128,7 +128,7 @@ model.multinom <- multinom (
 model.multinom
 ```
 
-### testing
+### testing Multinominal logitic regression.
 
 ```{r, mlg test, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
 
@@ -163,7 +163,7 @@ model.rf <- randomForest(
 summary(model.rf)
 ```
 
-### testing
+### testing Random Forest.
 
 
 ```{r, rf test, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
@@ -185,3 +185,6 @@ saveRDS(model.rf, paste0(parentFolder,"/models/rf_model.rds"))
 
 It can be seen that there may very well have been problems with the acquisition of the data from the colour sensor, which shows a number of errors that may have affected the training of the models, causing both bias and overfitting. In this case, overfitting may well have occurred. However, the possible replacement of the sensors used during the development of the final project by a BME280, which has the possibility of using 3 predictors, which could have guaranteed the non-proliferation of problems during the development of the final project, is taken into account belatedly.
 
+#### Repository
+
+[GITHUB](https://github.com/Khallavan/FinalProject)
