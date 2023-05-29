@@ -1,0 +1,187 @@
+---
+title: "Proyecto Final"
+author: 
+    - "Acevedo Mora Andres 55305"
+    - "Chavez Miguel Angel 80811"
+    - "Ducuara Quesada Daniela 85742"
+    - "Garcia Castillo Fenando 61865"
+    - "Morales Solano Javier Sebastian 73322"
+    - "Palacios Diego Alejandro 46026"
+date: "2023-05-29"
+output: pdf_document
+repo: 
+---
+
+```{r, r load data frame,echo=FALSE, message=FALSE, include=FALSE}
+if(!require(tidyverse))
+        install.packages("tidyverse")
+    library(tidyverse)
+
+    folder <- dirname(rstudioapi::getSourceEditorContext()$path)
+    parentFolder <- dirname(folder)
+    df <- read.csv2(paste0(parentFolder,"/datasets/","dataset_train.csv"))
+```
+
+## Abstract
+
+This paper presents an overview of the final project of the elective course Electronics Area I at ECCI University, regarding the training of models for the classification of hostile or difficult to access environments for human personnel. During the training process, certain environments were designed to facilitate the acquisition of data from the sensors used during the development of the project. In this case, a BMP180 barometric pressure sensor was used, which detects both pressure and temperature, and a TCS230 colour sensor, which is capable of identifying the RGB colours in the environment.
+
+## Resumen.
+
+En el presente documento se presentará un vistazo al proyecto final de la electiva de Área Electrónica I de la universidad ECCI, con respecto al entrenamiento de modelos de clasificación de ambientes hostiles o de difícil acceso para personal humano. Durante el proceso de entrenamiento, se diseñaron determinados ambientes para facilitar la adquisición de los datos de los sensoores empleados durante el desarrollo del proyecto. En este caso, se empleó un sensor de presión barométrica BMP180, el cual detecta tanto presión como temperatura, y un sensor de color capaz de identificar los porcentajes de color RGB en el ambiente.
+
+## Datasets.
+
+The data collected to train the prediction models selected for the final project will be treated to ensure better results during training. The conclusions will address the problems encountered during data collection.
+
+```{r, r data, echo=TRUE, message=FALSE, comment=NA}
+df$env <- as.factor(df$env)
+df$select._color <- as.factor(df$select._color)
+df$temp_C <- as.numeric(as.character(df$temp_C))
+df$press <- as.numeric(as.character(df$press))
+summary(df)
+```
+
+### Data processing.
+
+Next, we pre-process the data to ensure that the values in the select_color column are converted to dummy variables for later use in the models.
+
+```{r, r data, echo=TRUE, message=FALSE, comment=NA}
+library(caret)
+dummies <- dummyVars(~ select._color, data = df, na.action=na.pass)
+dummy_data <- predict(dummies, newdata = df)
+dummy_data[is.na(dummy_data)] <- 0
+df <- cbind(df, dummy_data)
+summary(df)
+```
+
+```{r, k graph, echo=TRUE, message=FALSE, comment=NA}
+library(psych)
+pairs.panels(df[c("freqRed",
+                   "freqBlue",
+                   "select._color.blue",
+                   "select._color.red",
+                   "temp_C",
+                   "press",
+                   "env")],
+             pch=21, bg=c("red","green3","blue", "orange")[unclass(df$env)])
+
+```
+
+Separation of data 80-20 for training purposes.
+
+```{r, data segmentation, message=FALSE, echo=TRUE, message=FALSE}
+df$select._color <- NULL
+df.idx <- createDataPartition(df$env, p = 0.8, list = FALSE)
+df.train <- df[df.idx,]
+df.test <- df[-df.idx,]
+```
+
+## Knn Model.
+
+During data preparation, parameters associated with training, such as cross-validation and pre-processing centering and scaling, are configured to ensure that the data is on a smaller scale. This can ensure a smaller difference in data scale.
+
+```{r, knn model, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+k.grid <- expand.grid(k = seq(1, 20, by = 2))
+control.knn <- trainControl(method = 'cv', number = 15)
+model.knn <- train(
+    env ~ .,
+    data = df.train,
+    method = 'knn',
+    preProcess = c('center', 'scale'),
+    trControl = control.knn,
+    tuneGrid = k.grid
+    )
+model.knn
+```
+
+### Model Test
+
+The appropriate tests are run on 30% of the data to check the accuracy of the model and a report is generated with the prediction model.
+
+```{r, knn model, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+predicted.knn <- predict(model.knn, newdata = df.test)
+conf.matrix <- confusionMatrix(predicted.knn, df.test$env)
+conf.matrix$table
+conf.matrix$overall["Accuracy"]
+```
+
+Without further training data and/or further test data, it can be concluded that the KNN model is over-fitting and therefore 100% accuracy is achieved.
+
+## Multinominal logitic regression
+
+Considering the results obtained when training the kNN model, a multinomial logistic regression model approximation is chosen because it is necessary to ensure that the model does not overfit in order to guarantee the credibility of the model.
+
+```{r, mlg model, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(MASS)
+library(nnet)
+control.multinom <- trainControl(method = 'cv', number = 10)
+tune.grid <- expand.grid(decay = seq(0, 1, by = 0.1))
+model.multinom <- multinom (
+    env ~ temp_C + press + freqBlue + freqRed,
+    data = df.train,
+    dacay = 0.1,
+    iter = 500
+)
+model.multinom
+```
+
+### testing
+
+```{r, mlg test, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Make predictions on test data
+predicted.multinom <- predict(model.multinom, newdata = df.test)
+
+# Evaluate model performance
+conf.matrix <- confusionMatrix(predicted.multinom, df.test$env)
+conf.matrix$table
+conf.matrix$overall["Accuracy"]
+
+```
+
+Several points can be considered regarding the MLR model. However, it cannot be ruled out that the training dataset has unwanted parameters or does not capture enough information. There are several points to consider, such as the fact that the colour sensor has been found to have errors in capturing data in certain environments.
+
+## Random Forest
+
+Considering the kNN and multinomial models above, the Random Forest model is chosen. In this case, by specifying the predictors to be used and the target, a forest of 500 trees is generated to ensure a more accurate prediction without pronounced overfitting.
+
+```{r, rf model, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+library(randomForest)
+df$env = factor(df$env)
+rf <-df[complete.cases(df),]
+df.idx.rf<-createDataPartition(df$env,p=0.7,list = F)
+
+model.rf <- randomForest(
+    x = df[df.idx.rf, -which(names(df) == "env")],
+    y = df[df.idx.rf, "env"],
+    ntree = 500,
+    keep.forest = TRUE
+)
+summary(model.rf)
+```
+
+### testing
+
+
+```{r, rf test, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+
+rf.predict <- predict(model.rf, newdata = df.test)
+summary(rf.predict)
+
+```
+
+## save models
+
+```{r, saves models, message=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+saveRDS(model.knn, paste0(parentFolder,"/models/knnModel.rds"))
+saveRDS(model.multinom, paste0(parentFolder,"/models/multinom.rds"))
+saveRDS(model.rf, paste0(parentFolder,"/models/rf_model.rds"))
+
+```
+## Conclusions 
+
+It can be seen that there may very well have been problems with the acquisition of the data from the colour sensor, which shows a number of errors that may have affected the training of the models, causing both bias and overfitting. In this case, overfitting may well have occurred. However, the possible replacement of the sensors used during the development of the final project by a BME280, which has the possibility of using 3 predictors, which could have guaranteed the non-proliferation of problems during the development of the final project, is taken into account belatedly.
+
